@@ -4,7 +4,8 @@
  */
 import { ADDED_IN_V3, DEFAULT_CATEGORIES, withMissingDefaults } from './data/categories';
 import { CURRENCIES } from './money';
-import type { Account, Category, Meta, Transaction } from './types';
+import { defaultCatalog } from './shopping';
+import type { Account, Category, Meta, ShopList, ShopListItem, ShopProduct, ShopSection, Transaction } from './types';
 
 export const BACKUP_APP = 'budget-app';
 
@@ -14,6 +15,10 @@ export interface BackupData {
   transactions: Transaction[];
   categories: Category[];
   meta: Meta[];
+  /** «Покупки» (с схемы 4). */
+  shopSections: ShopSection[];
+  shopProducts: ShopProduct[];
+  shopLists: ShopList[];
 }
 
 export interface BackupFile extends BackupData {
@@ -36,7 +41,10 @@ export function buildBackup(data: BackupData, schema: number, appVersion: string
     accounts: data.accounts,
     transactions: data.transactions,
     categories: data.categories,
-    meta: data.meta.filter((m) => !LOCAL_META.has(m.key))
+    meta: data.meta.filter((m) => !LOCAL_META.has(m.key)),
+    shopSections: data.shopSections,
+    shopProducts: data.shopProducts,
+    shopLists: data.shopLists
   };
 }
 
@@ -129,6 +137,57 @@ function parseTransaction(v: unknown, i: number, accounts: Set<number>, categori
   return t;
 }
 
+// ---- «Покупки» (схема 4) ----
+
+function parseShopSection(v: unknown, i: number): ShopSection {
+  const n = `Раздел покупок №${i + 1}`;
+  if (!isObj(v)) return fail(`${n}: неверная запись.`);
+  if (!isId(v.id)) fail(`${n}: нет номера.`);
+  if (!isStr(v.name)) fail(`${n}: нет названия.`);
+  return { id: v.id as number, name: v.name as string, order: Number.isFinite(v.order) ? (v.order as number) : (v.id as number) };
+}
+
+const isPrice = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
+
+function parseShopProduct(v: unknown, i: number, sections: Set<number>): ShopProduct {
+  const n = `Товар №${i + 1}`;
+  if (!isObj(v)) return fail(`${n}: неверная запись.`);
+  if (!isId(v.id)) fail(`${n}: нет номера.`);
+  if (!isStr(v.name)) fail(`${n}: нет названия.`);
+  if (!isPrice(v.price)) fail(`${n}: цена должна быть целым числом центов.`);
+  const p: ShopProduct = { id: v.id as number, name: v.name as string, price: v.price as number };
+  // Ссылка на несуществующий раздел — товар просто без раздела.
+  if (sections.has(v.sectionId as number)) p.sectionId = v.sectionId as number;
+  return p;
+}
+
+function parseShopList(v: unknown, i: number, sections: Set<number>, products: Set<number>): ShopList {
+  const n = `Список покупок №${i + 1}`;
+  if (!isObj(v)) return fail(`${n}: неверная запись.`);
+  if (!isId(v.id)) fail(`${n}: нет номера.`);
+  if (typeof v.date !== 'string' || !DATE.test(v.date)) fail(`${n}: неверная дата.`);
+  if (!Array.isArray(v.items)) fail(`${n}: нет товаров.`);
+  const items = (v.items as unknown[]).map((x, j): ShopListItem => {
+    const m = `${n}, товар №${j + 1}`;
+    if (!isObj(x)) return fail(`${m}: неверная запись.`);
+    if (!isStr(x.id) || !isStr(x.name)) fail(`${m}: нет номера или названия.`);
+    if (!(typeof x.qty === 'number' && x.qty > 0 && Number.isFinite(x.qty))) fail(`${m}: неверное количество.`);
+    if (!isPrice(x.price)) fail(`${m}: цена должна быть целым числом центов.`);
+    if (x.mark != null && x.mark !== 'taken' && x.mark !== 'missing') fail(`${m}: неизвестная отметка.`);
+    const it: ShopListItem = { id: x.id as string, name: x.name as string, qty: x.qty as number, price: x.price as number };
+    if (products.has(x.productId as number)) it.productId = x.productId as number;
+    if (sections.has(x.sectionId as number)) it.sectionId = x.sectionId as number;
+    if (typeof x.note === 'string' && x.note.trim()) it.note = x.note;
+    if (x.mark) it.mark = x.mark as ShopListItem['mark'];
+    return it;
+  });
+  const ids = new Set(items.map((x) => x.id));
+  if (ids.size !== items.length) fail(`${n}: повторяются строки.`);
+  const l: ShopList = { id: v.id as number, date: v.date as string, archived: v.archived === true, items };
+  if (isStr(v.title)) l.title = (v.title as string).trim();
+  return l;
+}
+
 /** Разобрать и проверить файл бэкапа, перевести старую схему к `currentSchema`. */
 export function parseBackup(text: string, currentSchema: number): ParseResult {
   let raw: unknown;
@@ -167,9 +226,28 @@ export function parseBackup(text: string, currentSchema: number): ParseResult {
       ? (f.meta as unknown[]).filter((m): m is Meta => isObj(m) && isStr(m.key) && !LOCAL_META.has(m.key as string))
       : [];
 
+    // «Покупки»: до схемы 4 их не было — стартовые разделы и справочник, списков нет.
+    let shopSections: ShopSection[];
+    let shopProducts: ShopProduct[];
+    let shopLists: ShopList[];
+    if (schema < 4) {
+      ({ sections: shopSections, products: shopProducts } = defaultCatalog());
+      shopLists = [];
+    } else {
+      if (!Array.isArray(f.shopSections) || !Array.isArray(f.shopProducts) || !Array.isArray(f.shopLists)) fail('В файле нет данных «Покупок».');
+      shopSections = (f.shopSections as unknown[]).map(parseShopSection);
+      uniqueIds(shopSections, 'Разделы покупок');
+      const secIds = new Set(shopSections.map((s) => s.id!));
+      shopProducts = (f.shopProducts as unknown[]).map((p, i) => parseShopProduct(p, i, secIds));
+      uniqueIds(shopProducts, 'Товары');
+      const prodIds = new Set(shopProducts.map((p) => p.id!));
+      shopLists = (f.shopLists as unknown[]).map((l, i) => parseShopList(l, i, secIds, prodIds));
+      uniqueIds(shopLists, 'Списки покупок');
+    }
+
     return {
       ok: true,
-      data: { accounts, transactions, categories, meta },
+      data: { accounts, transactions, categories, meta, shopSections, shopProducts, shopLists },
       schema,
       exportedAt: typeof f.exportedAt === 'string' ? f.exportedAt : undefined,
       appVersion: typeof f.appVersion === 'string' ? f.appVersion : undefined
@@ -192,9 +270,11 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2];
 }
 
-/** «3 счёта, 128 операций» (начальные остатки не считаются операциями). */
-export function summarize(data: Pick<BackupData, 'accounts' | 'transactions'>): string {
+/** «3 счёта, 128 операций, 2 списка покупок» (начальные остатки не считаются операциями; нет списков — не пишется). */
+export function summarize(data: Pick<BackupData, 'accounts' | 'transactions'> & Partial<Pick<BackupData, 'shopLists'>>): string {
   const a = data.accounts.length;
   const t = data.transactions.filter((x) => x.type !== 'opening').length;
-  return `${a} ${plural(a, ['счёт', 'счёта', 'счетов'])}, ${t} ${plural(t, ['операция', 'операции', 'операций'])}`;
+  const l = data.shopLists?.length ?? 0;
+  const lists = l ? `, ${l} ${plural(l, ['список', 'списка', 'списков'])} покупок` : '';
+  return `${a} ${plural(a, ['счёт', 'счёта', 'счетов'])}, ${t} ${plural(t, ['операция', 'операции', 'операций'])}${lists}`;
 }

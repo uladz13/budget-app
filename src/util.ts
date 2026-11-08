@@ -13,6 +13,11 @@ export function shortDate(iso: string, now: Date = new Date()): string {
   return d.getFullYear() === now.getFullYear() ? base : `${base} ${d.getFullYear()}`;
 }
 
+/** Короткий уникальный ключ (строки списка покупок). */
+export function uid(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
 /** Сколько полных суток прошло с момента (ISO). */
 export function daysSince(iso: string, now: Date = new Date()): number {
   return Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000);

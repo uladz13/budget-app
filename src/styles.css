@@ -76,8 +76,8 @@ main { max-width: 640px; margin: 0 auto; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 details > summary { cursor: pointer; padding: 6px 2px; color: var(--muted); }
 
-.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: grid; grid-template-columns: repeat(4, 1fr); background: #0c0e10; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-.tabbar button { height: 60px; color: var(--muted); font-weight: 600; }
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; display: grid; grid-template-columns: repeat(5, 1fr); background: #0c0e10; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.tabbar button { height: 60px; color: var(--muted); font-weight: 600; font-size: 14px; padding: 0 2px; }
 .tabbar button.on { color: var(--accent); }
 
 /* Кнопка «+» над нижней панелью */
@@ -152,6 +152,42 @@ input[type='date'].text-input { color-scheme: dark; }
 .month-cols.multi .month-col + .month-col { border-top: 1px solid var(--line); padding-top: 12px; }
 .month-col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .month-col .cur { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; }
+
+/* Покупки */
+.shop-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; position: sticky; top: 0; z-index: 20; }
+.stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.stat-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-value.income { color: var(--income); }
+.add-box { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.suggest { padding: 4px 12px; display: flex; flex-direction: column; }
+.suggest-row { padding: 10px 2px; gap: 10px; }
+.suggest-row.accent .row-title { color: var(--accent); font-weight: 600; }
+.shop-list { display: flex; flex-direction: column; gap: 14px; padding-top: 12px; padding-bottom: 6px; }
+.shop-section { display: flex; flex-direction: column; }
+.shop-section .eyebrow { color: var(--accent); }
+.shop-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+.shop-section-head + .shop-item { border-top: 0; }
+.shop-section.empty-section .eyebrow { color: var(--muted); }
+.section-add { width: 32px; height: 32px; font-size: 20px; color: var(--accent); flex: none; }
+.shop-list { gap: 6px; }
+.section-products { display: flex; flex-direction: column; }
+.in-list { color: var(--accent); }
+.shop-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.shop-section .eyebrow + .shop-item { border-top: 0; }
+.shop-item-main { flex: 1; min-width: 0; text-align: left; padding: 2px 0; display: flex; flex-direction: column; gap: 2px; }
+.shop-item-sum { flex: none; font-size: 14px; color: var(--muted); }
+.shop-item.taken .shop-item-main, .shop-item.taken .shop-item-sum { opacity: 0.45; }
+.shop-item.missing .shop-item-name { text-decoration: line-through; }
+.shop-item.missing .shop-item-main, .shop-item.missing .shop-item-sum { opacity: 0.45; }
+.mark-btn { font-size: 18px; font-weight: 700; color: var(--muted); }
+.mark-btn.on.taken { background: var(--accent); color: var(--accent-ink); }
+.mark-btn.on.missing { background: #3a1d1f; color: var(--danger); }
+.mark-static { flex: none; width: 24px; text-align: center; color: var(--muted); font-weight: 700; }
+.catalog details + details { border-top: 1px solid var(--line); }
+.catalog summary { padding: 12px 2px; color: var(--text); font-weight: 600; }
+.catalog details .list-row:first-of-type { border-top: 1px solid var(--line); }
+.tile-num { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 /* Бэкап */
 .backup { display: flex; flex-direction: column; gap: 8px; }

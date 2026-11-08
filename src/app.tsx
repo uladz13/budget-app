@@ -10,6 +10,9 @@ import { AccountsScreen } from './screens/AccountsScreen';
 import { OperationForm } from './components/OperationForm';
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen';
 import { CategoriesScreen } from './screens/CategoriesScreen';
+import { ShoppingScreen } from './screens/ShoppingScreen';
+import { ShopListScreen } from './screens/ShopListScreen';
+import { CatalogScreen } from './screens/CatalogScreen';
 import { logEvent } from './diagStore';
 import { formatMs } from './diagnostics';
 
@@ -59,6 +62,9 @@ export function App() {
   else if (page === 'accounts') screen = <AccountsScreen />;
   else if (page === 'diag') screen = <DiagnosticsScreen />;
   else if (page === 'categories') screen = <CategoriesScreen />;
+  else if (page === 'shop' && route[1]) screen = <ShopListScreen key={route[1]} id={Number(route[1])} />;
+  else if (page === 'shop') screen = <ShoppingScreen />;
+  else if (page === 'catalog') screen = <CatalogScreen />;
   else screen = <HomeScreen />;
 
   /** Какая вкладка подсвечена для экрана. */
@@ -66,6 +72,8 @@ export function App() {
     home: 'home',
     transactions: 'transactions',
     reports: 'reports',
+    shop: 'shop',
+    catalog: 'shop',
     more: 'more',
     accounts: 'more',
     diag: 'more',
@@ -76,6 +84,7 @@ export function App() {
     ['home', 'Главная'],
     ['transactions', 'Операции'],
     ['reports', 'Отчёты'],
+    ['shop', 'Покупки'],
     ['more', 'Ещё']
   ];
 

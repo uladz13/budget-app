@@ -55,6 +55,50 @@ export interface Category {
   order: number;
 }
 
+// ---- Покупки (BA-006) — отдельно от бюджета ----
+
+/** Раздел списка покупок («Мясо», «Хозы»…). */
+export interface ShopSection {
+  id?: number;
+  name: string;
+  order: number;
+}
+
+/** Товар справочника: обычная цена в центах (EUR), раздел. */
+export interface ShopProduct {
+  id?: number;
+  name: string;
+  price: number;
+  sectionId?: number;
+}
+
+/** Отметка в магазине: «взял» / «не было»; нет поля — ещё не отмечено. */
+export type ShopMark = 'taken' | 'missing';
+
+/** Строка списка: копия названия и цены на момент добавления (справочник может измениться). */
+export interface ShopListItem {
+  /** Уникальный ключ строки внутри списка. */
+  id: string;
+  productId?: number;
+  name: string;
+  sectionId?: number;
+  /** Количество (может быть дробным: 1,5 кг). */
+  qty: number;
+  /** Цена за единицу, центы. */
+  price: number;
+  note?: string;
+  mark?: ShopMark;
+}
+
+export interface ShopList {
+  id?: number;
+  /** Дата похода, `YYYY-MM-DD`. */
+  date: string;
+  title?: string;
+  archived: boolean;
+  items: ShopListItem[];
+}
+
 export interface Meta {
   key: string;
   value: unknown;

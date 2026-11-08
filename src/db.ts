@@ -1,5 +1,7 @@
 import Dexie, { type Table } from 'dexie';
-import type { Account, Category, Meta, Transaction } from './types';
+import type { Account, Category, Meta, ShopList, ShopProduct, ShopSection, Transaction } from './types';
+import { addProduct, defaultCatalog, updateItem } from './shopping';
+import type { ShopListItem } from './types';
 import { ADDED_IN_V3, DEFAULT_CATEGORIES, withMissingDefaults } from './data/categories';
 import { kindOf, type OperationKind } from './operations';
 import { logEvent, now, recordTransaction } from './diagStore';
@@ -17,6 +19,9 @@ class BudgetDB extends Dexie {
   transactions!: Table<Transaction, number>;
   meta!: Table<Meta, string>;
   categories!: Table<Category, number>;
+  shopSections!: Table<ShopSection, number>;
+  shopProducts!: Table<ShopProduct, number>;
+  shopLists!: Table<ShopList, number>;
 
   constructor() {
     super('budget-app');
@@ -35,9 +40,25 @@ class BudgetDB extends Dexie {
     this.version(3)
       .stores({})
       .upgrade((tx) => addMissingDefaults(tx.table('categories'), ADDED_IN_V3));
-    // Новая установка: upgrade не выполняется — стартовые категории создаёт populate.
-    this.on('populate', (tx) => seedCategories(tx.table('categories')));
+    // v4 (BA-006): «Покупки» — разделы, справочник товаров, списки (строки — внутри списка).
+    // Данные бюджета не меняются; стартовые разделы и справочник добавляются в пустые таблицы.
+    this.version(4)
+      .stores({ shopSections: '++id', shopProducts: '++id, name', shopLists: '++id, date' })
+      .upgrade((tx) => seedShop(tx.table('shopSections'), tx.table('shopProducts')));
+    // Новая установка: upgrade не выполняется — стартовые данные создаёт populate.
+    this.on('populate', async (tx) => {
+      await seedCategories(tx.table('categories'));
+      await seedShop(tx.table('shopSections'), tx.table('shopProducts'));
+    });
   }
+}
+
+/** Стартовые разделы и справочник «Покупок» — только в пустые таблицы. */
+async function seedShop(sections: Table<ShopSection, number>, products: Table<ShopProduct, number>): Promise<void> {
+  if ((await sections.count()) > 0 || (await products.count()) > 0) return;
+  const d = defaultCatalog();
+  await sections.bulkAdd(d.sections);
+  await products.bulkAdd(d.products);
 }
 
 /** Стартовые категории — только в пустую таблицу (повторный вызов ничего не дублирует). */
@@ -100,7 +121,7 @@ db.on('ready', () => {
 });
 
 /** Версия схемы данных — совпадает с номером версии базы и полем `schema` бэкапа. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Открыть базу (ошибку показывает оболочка приложения). */
 export async function initDb(): Promise<void> {
@@ -173,15 +194,91 @@ export async function deleteCategory(id: number): Promise<void> {
   });
 }
 
+// ---- Покупки (BA-006) ----
+
+/** Создать или изменить список покупок целиком (строки хранятся внутри списка). */
+export async function saveShopList(list: ShopList): Promise<number> {
+  return db.shopLists.put(list);
+}
+
+/**
+ * Изменить список по его текущему состоянию в базе (внутри транзакции) — быстрые нажатия
+ * ✓ ✗ подряд не затирают друг друга.
+ */
+export async function updateShopList(id: number, fn: (list: ShopList) => ShopList): Promise<void> {
+  await db.transaction('rw', db.shopLists, async () => {
+    const list = await db.shopLists.get(id);
+    if (!list) throw new Error('список не найден');
+    await db.shopLists.put(fn(list));
+  });
+}
+
+/** Добавить товар справочника в список; новый товар (без id) сначала сохраняется в справочник. */
+export async function addProductToList(
+  listId: number,
+  product: ShopProduct,
+  newItemId: string
+): Promise<{ merged: boolean; itemId: string }> {
+  return db.transaction('rw', db.shopLists, db.shopProducts, async () => {
+    // Копия: Dexie дописывает id в переданный объект, а вызывающий судит по его отсутствию, новый ли товар.
+    const p = product.id == null ? { ...product, id: await db.shopProducts.add({ ...product }) } : product;
+    const list = await db.shopLists.get(listId);
+    if (!list) throw new Error('список не найден');
+    const res = addProduct(list, p, newItemId);
+    await db.shopLists.put(res.list);
+    return { merged: res.merged, itemId: res.itemId };
+  });
+}
+
+/** Сохранить строку списка; цена и раздел запоминаются в справочнике (decisions п. 6 BA-006). */
+export async function saveListItem(listId: number, item: ShopListItem): Promise<void> {
+  await db.transaction('rw', db.shopLists, db.shopProducts, async () => {
+    const list = await db.shopLists.get(listId);
+    if (!list) throw new Error('список не найден');
+    await db.shopLists.put(updateItem(list, item.id, item));
+    if (item.productId != null) await db.shopProducts.update(item.productId, { price: item.price, sectionId: item.sectionId });
+  });
+}
+
+/** Создать или изменить товар справочника. Копия — Dexie дописывает id в переданный объект. */
+export async function saveProduct(p: ShopProduct): Promise<number> {
+  return db.shopProducts.put({ ...p });
+}
+
+/** Удалить товар из справочника; в списках остаются его строки (у них своя копия названия и цены). */
+export async function deleteProduct(id: number): Promise<void> {
+  await db.shopProducts.delete(id);
+}
+
+/** Записать справочник и разделы после загрузки CSV (одной транзакцией; ничего не удаляется). */
+export async function applyCatalog(products: ShopProduct[], sections: ShopSection[]): Promise<void> {
+  await db.transaction('rw', db.shopProducts, db.shopSections, async () => {
+    await db.shopSections.bulkPut(sections);
+    await db.shopProducts.bulkPut(products);
+  });
+}
+
+export async function setShopListArchived(id: number, archived: boolean): Promise<void> {
+  await db.shopLists.update(id, { archived });
+}
+
+export async function deleteShopList(id: number): Promise<void> {
+  await db.shopLists.delete(id);
+}
+
 // ---- Бэкап (BA-005) ----
 
 /** Все данные пользователя для бэкапа. */
 export async function readAllData(): Promise<BackupData> {
-  return db.transaction('r', db.accounts, db.transactions, db.categories, db.meta, async () => ({
+  const tables = [db.accounts, db.transactions, db.categories, db.meta, db.shopSections, db.shopProducts, db.shopLists];
+  return db.transaction('r', tables, async () => ({
     accounts: await db.accounts.toArray(),
     transactions: await db.transactions.toArray(),
     categories: await db.categories.toArray(),
-    meta: await db.meta.toArray()
+    meta: await db.meta.toArray(),
+    shopSections: await db.shopSections.toArray(),
+    shopProducts: await db.shopProducts.toArray(),
+    shopLists: await db.shopLists.toArray()
   }));
 }
 
@@ -190,13 +287,17 @@ export async function readAllData(): Promise<BackupData> {
  * (decisions.md п. 34). Дата последнего бэкапа этого телефона сохраняется.
  */
 export async function replaceAllData(data: BackupData): Promise<void> {
-  await db.transaction('rw', db.accounts, db.transactions, db.categories, db.meta, async () => {
+  const tables = [db.accounts, db.transactions, db.categories, db.meta, db.shopSections, db.shopProducts, db.shopLists];
+  await db.transaction('rw', tables, async () => {
     const lastBackup = await db.meta.get('lastBackup');
-    await Promise.all([db.accounts.clear(), db.transactions.clear(), db.categories.clear(), db.meta.clear()]);
+    await Promise.all(tables.map((t) => t.clear()));
     await db.accounts.bulkAdd(data.accounts);
     await db.categories.bulkAdd(data.categories);
     await db.transactions.bulkAdd(data.transactions);
     await db.meta.bulkPut(data.meta);
+    await db.shopSections.bulkAdd(data.shopSections);
+    await db.shopProducts.bulkAdd(data.shopProducts);
+    await db.shopLists.bulkAdd(data.shopLists);
     if (lastBackup) await db.meta.put(lastBackup);
   });
 }
