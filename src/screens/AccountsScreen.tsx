@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import { db, getOpening, hasOperations, saveAccount, setArchived } from '../db';
+import { db, deleteAccount, getDeleteInfo, getOpening, hasOperations, saveAccount, setArchived } from '../db';
 import { useLive } from '../hooks';
 import { go } from '../router';
 import { accountBalances, sortAccounts } from '../balances';
 import { CURRENCIES, DEFAULT_CURRENCY, amountToInput, formatMoney, parseAmount } from '../money';
-import { Seg, Sheet } from '../components/ui';
+import { AsyncButton, Seg, Sheet } from '../components/ui';
 import { todayIso } from '../util';
 import type { Account, AccountGroup, AccountKind, Currency } from '../types';
 
@@ -98,6 +98,8 @@ function AccountForm({ account, onClose }: { account?: Account; onClose: () => v
   /** У счёта есть операции — валюту не меняем, иначе суммы станут неверными. */
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState('');
+  /** Идёт сохранение — остальные кнопки и закрытие панели заблокированы. */
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (account?.id == null) return;
@@ -106,6 +108,7 @@ function AccountForm({ account, onClose }: { account?: Account; onClose: () => v
   }, [account?.id]);
 
   const save = async () => {
+    setError('');
     const trimmed = name.trim();
     if (!trimmed) return setError('Введите название счёта.');
     const amount = opening.trim() ? parseAmount(opening, currency) : 0;
@@ -123,8 +126,21 @@ function AccountForm({ account, onClose }: { account?: Account; onClose: () => v
     onClose();
   };
 
+  const remove = async () => {
+    setError('');
+    const id = account!.id!;
+    const info = await getDeleteInfo(id);
+    if (info.linked) {
+      return setError('Счёт нельзя удалить: есть переводы или обмены с другими счетами. Отправьте его в архив.');
+    }
+    const ops = info.operations ? `\nВместе с ним удалятся операции: ${info.operations}.` : '';
+    if (!confirm(`Удалить счёт «${account!.name}» навсегда?${ops}\nОтменить это нельзя.`)) return;
+    await deleteAccount(id);
+    onClose();
+  };
+
   return (
-    <Sheet title={account ? 'Счёт' : 'Новый счёт'} onClose={onClose}>
+    <Sheet title={account ? 'Счёт' : 'Новый счёт'} onClose={onClose} locked={busy}>
       <label class="field">
         Название
         <input
@@ -164,14 +180,19 @@ function AccountForm({ account, onClose }: { account?: Account; onClose: () => v
       </label>
       {error && <p class="error-text">{error}</p>}
       <div class="sheet-actions">
-        <button class="btn primary" onClick={save}>
+        <AsyncButton class="btn primary" onClick={save} disabled={busy} onBusy={setBusy}>
           Сохранить
-        </button>
+        </AsyncButton>
       </div>
       {account && (
-        <button class="btn danger-text" onClick={toggleArchive}>
+        <AsyncButton class="btn danger-text" onClick={toggleArchive} disabled={busy} onBusy={setBusy}>
           {account.archived ? 'Вернуть из архива' : 'Отправить в архив'}
-        </button>
+        </AsyncButton>
+      )}
+      {account && (
+        <AsyncButton class="btn danger" onClick={remove} disabled={busy} onBusy={setBusy} busyLabel="Удаление…">
+          Удалить счёт
+        </AsyncButton>
       )}
     </Sheet>
   );

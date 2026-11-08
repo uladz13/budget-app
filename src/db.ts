@@ -71,6 +71,32 @@ export async function setArchived(accountId: number, archived: boolean): Promise
   await db.accounts.update(accountId, { archived });
 }
 
+export interface DeleteInfo {
+  /** Сколько операций счёта удалится вместе с ним (включая начальный остаток). */
+  operations: number;
+  /** Есть переводы/обмены с другими счетами — удалять нельзя (decisions.md п. 22). */
+  linked: boolean;
+}
+
+/** Что будет при удалении счёта. */
+export async function getDeleteInfo(accountId: number): Promise<DeleteInfo> {
+  const own = await db.transactions.where('accountId').equals(accountId).toArray();
+  const incoming = await db.transactions.where('toAccountId').equals(accountId).toArray();
+  const linked = [...own, ...incoming].some((t) => t.toAccountId != null && (t.accountId !== accountId || t.toAccountId !== accountId));
+  return { operations: own.length + incoming.length, linked };
+}
+
+/** Удалить счёт вместе с его операциями. Счёт со связанными переводами/обменами не удаляется (ошибка). */
+export async function deleteAccount(accountId: number): Promise<void> {
+  await db.transaction('rw', db.accounts, db.transactions, async () => {
+    if ((await getDeleteInfo(accountId)).linked) {
+      throw new Error('у счёта есть переводы или обмены с другими счетами — отправьте его в архив');
+    }
+    await db.transactions.where('accountId').equals(accountId).delete();
+    await db.accounts.delete(accountId);
+  });
+}
+
 /** Попросить браузер не удалять данные при нехватке места. */
 export async function requestPersistence(): Promise<boolean> {
   try {

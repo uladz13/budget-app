@@ -43,6 +43,10 @@ main { max-width: 640px; margin: 0 auto; }
 .btn.danger-text { background: none; color: var(--danger); font-weight: 500; }
 .btn.ghost { background: none; border: 1px dashed var(--line); color: var(--muted); }
 .btn.wide { width: 100%; }
+/* Идёт сохранение: кнопка не тускнеет как disabled, а показывает спиннер */
+.btn.busy:disabled { opacity: 0.85; gap: 10px; cursor: progress; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.7s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .chip { padding: 8px 12px; border-radius: 999px; background: var(--card-2); font-size: 14px; }
 .link { color: var(--accent); text-decoration: underline; padding: 0; font-size: inherit; }
 .icon-btn { width: 40px; height: 40px; border-radius: 50%; background: var(--card-2); }
