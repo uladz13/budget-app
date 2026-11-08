@@ -4,10 +4,13 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: '/budget-app/',
+  // Версия из package.json — для журнала диагностики (BA-008).
+  define: { __APP_VERSION__: JSON.stringify(process.env.npm_package_version ?? 'dev') },
   plugins: [
     preact(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': новая версия ждёт нажатия «Обновить» или следующего запуска (BA-008).
+      registerType: 'prompt',
       includeAssets: ['icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Бюджет',

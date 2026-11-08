@@ -104,6 +104,19 @@ input[type='date'].text-input { color-scheme: dark; }
 .op-amount.income { color: var(--income); }
 .op-amount.expense { color: var(--expense); }
 
+/* Плашки приложения: новая версия, база изменена другой копией */
+.app-banner { position: sticky; top: 0; z-index: 46; display: flex; align-items: center; justify-content: space-between; gap: 10px; max-width: 640px; margin: 0 auto; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; background: #163327; color: #b9f0da; font-size: 14px; }
+.app-banner.warn { background: #2b2615; color: #f0d58a; }
+.app-banner .chip { flex: none; }
+.chip.accent { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+/* Диагностика */
+.diag-log { display: flex; flex-direction: column; gap: 6px; font: 12px/1.45 ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; user-select: text; }
+.diag-row { padding-bottom: 6px; border-bottom: 1px solid var(--line); word-break: break-word; }
+.diag-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.diag-row.event { color: var(--muted); }
+.diag-text { font: 12px/1.4 ui-monospace, Menlo, Consolas, monospace; resize: vertical; }
+
 /* Главная: итоги по группам */
 .totals { display: flex; flex-direction: column; gap: 4px; }
 .total-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }

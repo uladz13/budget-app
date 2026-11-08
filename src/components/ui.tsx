@@ -1,5 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { ensureOpen, explainDbError } from '../db';
+import { logDiag, logEvent, nextPaint, now, takeTransactions, type DiagPhase } from '../diagStore';
 
 /** Нижняя панель поверх экрана (формы, выбор). `locked` — закрыть нельзя (идёт сохранение). */
 export function Sheet({
@@ -40,7 +42,8 @@ export function AsyncButton({
   class: cls = 'btn',
   busyLabel = 'Сохранение…',
   disabled,
-  onBusy
+  onBusy,
+  name = 'Сохранение'
 }: {
   onClick: () => Promise<unknown>;
   children: ComponentChildren;
@@ -48,26 +51,62 @@ export function AsyncButton({
   busyLabel?: string;
   disabled?: boolean;
   onBusy?: (busy: boolean) => void;
+  /** Название действия для журнала диагностики («Операция · сохранить»). */
+  name?: string;
 }) {
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [slowHint, setSlowHint] = useState(false);
 
-  const run = async () => {
+  const run = async (e: Event) => {
     if (running.current || disabled) return;
     running.current = true;
+    // Замер по фазам для «Ещё → Диагностика» (BA-008).
+    const tStart = now();
+    const response = e.timeStamp > 0 && e.timeStamp <= tStart ? tStart - e.timeStamp : 0;
+    // Дольше 5 с — подсказка на кнопке и запись в журнал сразу, не дожидаясь конца (decisions.md п. 32).
+    const slow = setTimeout(() => {
+      setSlowHint(true);
+      logEvent(`${name}: идёт дольше 5 с`);
+    }, 5000);
+    let ok = true;
+    let message: string | undefined;
+    let tOpen = tStart;
+    let tAction = tStart;
     setBusy(true);
     setError('');
     onBusy?.(true);
     try {
+      await ensureOpen();
+      tOpen = now();
+      takeTransactions();
       await onClick();
-    } catch (e) {
-      setError('Не удалось сохранить: ' + ((e as Error)?.message ?? String(e)));
+    } catch (err) {
+      ok = false;
+      message = `${(err as Error)?.name ?? 'Error'}: ${(err as Error)?.message ?? String(err)}`;
+      setError('Не удалось сохранить: ' + explainDbError(err));
     } finally {
+      tAction = now();
+      clearTimeout(slow);
+      setSlowHint(false);
       running.current = false;
       setBusy(false);
       onBusy?.(false);
     }
+    const tx = takeTransactions();
+    await nextPaint();
+    const tEnd = now();
+    const phases: DiagPhase[] = [
+      { name: 'отклик', ms: response },
+      { name: 'база', ms: tOpen - tStart },
+      { name: `запись (${tx.count})`, ms: tx.total },
+      { name: 'прочее', ms: Math.max(0, tAction - tOpen - tx.total) },
+      { name: 'экран', ms: tEnd - tAction }
+    ];
+    // Нажатие без записи в базу (ошибка в форме, отмена подтверждения) — помечаем, чтобы не путать с сохранением.
+    const label = tx.count === 0 && ok ? `${name} — без записи` : name;
+    logDiag({ kind: 'save', label, total: response + (tEnd - tStart), phases, ok, error: message });
   };
 
   return (
@@ -76,7 +115,7 @@ export function AsyncButton({
         {busy ? (
           <>
             <span class="spinner" aria-hidden="true" />
-            {busyLabel}
+            {slowHint ? `${busyLabel} это дольше обычного` : busyLabel}
           </>
         ) : (
           children

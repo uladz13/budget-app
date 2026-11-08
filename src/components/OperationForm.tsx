@@ -177,12 +177,12 @@ export function OperationForm({ tx, onClose }: { tx?: Transaction; onClose: () =
 
       {error && <p class="error-text">{error}</p>}
       <div class="sheet-actions">
-        <AsyncButton class="btn primary" onClick={save} disabled={busy} onBusy={setBusy}>
+        <AsyncButton class="btn primary" name="Операция · сохранить" onClick={save} disabled={busy} onBusy={setBusy}>
           Сохранить
         </AsyncButton>
       </div>
       {tx && (
-        <AsyncButton class="btn danger" onClick={remove} disabled={busy} onBusy={setBusy} busyLabel="Удаление…">
+        <AsyncButton class="btn danger" name="Операция · удалить" onClick={remove} disabled={busy} onBusy={setBusy} busyLabel="Удаление…">
           Удалить операцию
         </AsyncButton>
       )}

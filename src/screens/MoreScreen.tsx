@@ -14,8 +14,15 @@ export function MoreScreen() {
           </span>
           <span class="muted">›</span>
         </button>
+        <button class="list-row" onClick={() => go('diag')}>
+          <span class="row-main">
+            <span class="row-title">Диагностика</span>
+            <span class="muted small">Скорость сохранения, журнал для разработчика</span>
+          </span>
+          <span class="muted">›</span>
+        </button>
       </section>
-      <p class="muted small center">Бюджет · версия 0.2.0</p>
+      <p class="muted small center">Бюджет · версия 0.2.1</p>
     </div>
   );
 }

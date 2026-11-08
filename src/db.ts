@@ -2,6 +2,9 @@ import Dexie, { type Table } from 'dexie';
 import type { Account, Category, Meta, Transaction } from './types';
 import { ADDED_IN_V3, DEFAULT_CATEGORIES } from './data/categories';
 import { kindOf, type OperationKind } from './operations';
+import { logEvent, now, recordTransaction } from './diagStore';
+import { formatMs } from './diagnostics';
+import { getAppState, setAppState } from './appState';
 
 /**
  * Хранилище — только через этот модуль. Схема меняется только новой `version(n)` с миграцией;
@@ -59,12 +62,88 @@ async function addMissingDefaults(table: Table<Category, number>, names: string[
 
 export const db = new BudgetDB();
 
+// Диагностика (BA-008): длительность каждой транзакции записи — от создания до завершения.
+db.use({
+  stack: 'dbcore',
+  name: 'diag-timing',
+  create(down) {
+    return {
+      ...down,
+      transaction(stores, mode, options) {
+        const tx = down.transaction(stores, mode, options);
+        const idb = tx as unknown as Partial<IDBTransaction>;
+        if (mode === 'readwrite' && typeof idb.addEventListener === 'function') {
+          const t0 = now();
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            recordTransaction(now() - t0);
+          };
+          idb.addEventListener('complete', finish);
+          idb.addEventListener('abort', finish);
+        }
+        return tx;
+      }
+    };
+  }
+});
+
+// Другая копия приложения (старая вкладка/окно) открывает базу новой схемы или мешает открыть её здесь
+// (decisions.md п. 32). Dexie сам закрывает соединение этой копии, чтобы не блокировать новую; сохранения
+// здесь дальше невозможны — просим перезапустить.
+db.on('versionchange', () => {
+  logEvent('база: другая копия приложения обновляет схему');
+  setAppState({ dbStale: true });
+});
+db.on('blocked', () => {
+  logEvent('база: открытие ждёт, пока закроется другая копия приложения');
+  setAppState({ dbBlocked: true });
+});
+db.on('ready', () => {
+  if (getAppState().dbBlocked) setAppState({ dbBlocked: false });
+});
+
 /** Версия схемы данных — совпадает с номером версии базы и полем `schema` бэкапа. */
 export const SCHEMA_VERSION = 3;
 
 /** Открыть базу (ошибку показывает оболочка приложения). */
 export async function initDb(): Promise<void> {
+  const t0 = now();
   await db.open();
+  logEvent(`запуск: база открыта за ${formatMs(now() - t0)}`);
+}
+
+/**
+ * «Разогрев» после возврата в приложение (decisions.md, BA-008): лёгкое чтение, чтобы браузер поднял
+ * хранилище заранее, а не в момент нажатия «Сохранить».
+ */
+export async function warmUp(): Promise<void> {
+  const t0 = now();
+  try {
+    await ensureOpen();
+    await db.meta.get('warmup');
+    logEvent(`разогрев базы: ${formatMs(now() - t0)}`);
+  } catch (e) {
+    logEvent(`разогрев базы: ошибка ${(e as Error)?.name ?? e}`);
+  }
+}
+
+/** Понятный текст ошибки сохранения: другая копия приложения изменила или держит базу. */
+export function explainDbError(e: unknown): string {
+  const name = (e as Error)?.name ?? '';
+  if (name === 'VersionError' || name === 'DatabaseClosedError' || getAppState().dbStale) {
+    return 'приложение обновилось в другом окне. Перезапустите приложение — данные не потеряются.';
+  }
+  if (name === 'BlockedError' || getAppState().dbBlocked) {
+    return 'база занята другой копией приложения. Закройте другие окна и вкладки приложения.';
+  }
+  return (e as Error)?.message ?? String(e);
+}
+
+/** База открыта (если её закрыли — например, при обновлении схемы другой копией, — открыть заново). */
+export async function ensureOpen(): Promise<void> {
+  if (!db.isOpen()) await db.open();
 }
 
 // ---- Операции ----

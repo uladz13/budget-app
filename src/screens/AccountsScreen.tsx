@@ -180,17 +180,17 @@ function AccountForm({ account, onClose }: { account?: Account; onClose: () => v
       </label>
       {error && <p class="error-text">{error}</p>}
       <div class="sheet-actions">
-        <AsyncButton class="btn primary" onClick={save} disabled={busy} onBusy={setBusy}>
+        <AsyncButton class="btn primary" name="Счёт · сохранить" onClick={save} disabled={busy} onBusy={setBusy}>
           Сохранить
         </AsyncButton>
       </div>
       {account && (
-        <AsyncButton class="btn danger-text" onClick={toggleArchive} disabled={busy} onBusy={setBusy}>
+        <AsyncButton class="btn danger-text" name="Счёт · архив" onClick={toggleArchive} disabled={busy} onBusy={setBusy}>
           {account.archived ? 'Вернуть из архива' : 'Отправить в архив'}
         </AsyncButton>
       )}
       {account && (
-        <AsyncButton class="btn danger" onClick={remove} disabled={busy} onBusy={setBusy} busyLabel="Удаление…">
+        <AsyncButton class="btn danger" name="Счёт · удалить" onClick={remove} disabled={busy} onBusy={setBusy} busyLabel="Удаление…">
           Удалить счёт
         </AsyncButton>
       )}
