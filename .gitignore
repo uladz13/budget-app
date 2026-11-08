@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+# личные документы не публикуем
+*.docx
+~$*
+# приватные инструкции агента и рабочие материалы проекта
+CLAUDE.md
+.claude/
+project/
+# приватный репозиторий (budget-app-private)
+.private-git/
