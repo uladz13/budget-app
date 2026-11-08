@@ -42,6 +42,19 @@ export interface Transaction {
   note?: string;
 }
 
+/** Вид категории: для расходов или для доходов. */
+export type CategoryKind = 'expense' | 'income';
+
+export interface Category {
+  id?: number;
+  name: string;
+  kind: CategoryKind;
+  /** Скрытая категория не предлагается для новых операций, но остаётся в старых (BA-003). */
+  hidden: boolean;
+  /** Порядок в списке своего вида. */
+  order: number;
+}
+
 export interface Meta {
   key: string;
   value: unknown;

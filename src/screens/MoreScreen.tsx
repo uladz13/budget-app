@@ -15,7 +15,7 @@ export function MoreScreen() {
           <span class="muted">›</span>
         </button>
       </section>
-      <p class="muted small center">Бюджет · версия 0.1.1</p>
+      <p class="muted small center">Бюджет · версия 0.2.0</p>
     </div>
   );
 }

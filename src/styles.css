@@ -80,6 +80,30 @@ details > summary { cursor: pointer; padding: 6px 2px; color: var(--muted); }
 .tabbar button { height: 60px; color: var(--muted); font-weight: 600; }
 .tabbar button.on { color: var(--accent); }
 
+/* Кнопка «+» над нижней панелью */
+.fab { position: fixed; z-index: 44; right: max(16px, calc(50vw - 320px + 16px)); bottom: calc(76px + env(safe-area-inset-bottom)); width: 58px; height: 58px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 32px; font-weight: 500; line-height: 1; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+
+/* Форма операции */
+.text-input.amount.big { font-size: 26px; padding: 10px 12px; }
+select.text-input { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 32px; }
+input[type='date'].text-input { color-scheme: dark; }
+.cat-grid button { flex: 1 1 auto; }
+
+/* Список операций */
+.month-switch { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.month-switch .icon-btn { font-size: 22px; }
+.month-title { font-weight: 600; font-size: 17px; }
+.filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.filters .text-input { padding: 10px 12px; font-size: 15px; min-width: 0; }
+.filters .search { grid-column: 1 / -1; }
+.filters .link { grid-column: 1 / -1; justify-self: start; }
+.day { padding-top: 10px; padding-bottom: 4px; }
+.day-head { padding: 0 2px 2px; }
+.op-row { padding: 10px 2px; }
+.op-amount { font-weight: 600; text-align: right; }
+.op-amount.income { color: var(--income); }
+.op-amount.expense { color: var(--expense); }
+
 /* Главная: итоги по группам */
 .totals { display: flex; flex-direction: column; gap: 4px; }
 .total-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }

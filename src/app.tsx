@@ -6,10 +6,12 @@ import { TransactionsScreen } from './screens/TransactionsScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { AccountsScreen } from './screens/AccountsScreen';
+import { OperationForm } from './components/OperationForm';
 
 export function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
   const route = useHashRoute();
   const [page] = route;
 
@@ -46,9 +48,18 @@ export function App() {
     ['more', 'Ещё']
   ];
 
+  /** Кнопка «+» — на «Главной» и «Операциях» (decisions.md п. 24, BA-002). */
+  const showFab = tab === 'home' || tab === 'transactions';
+
   return (
     <>
       <main>{screen}</main>
+      {showFab && (
+        <button class="fab" onClick={() => setAdding(true)} aria-label="Новая операция">
+          +
+        </button>
+      )}
+      {adding && <OperationForm onClose={() => setAdding(false)} />}
       <nav class="tabbar">
         {nav.map(([k, l]) => (
           <button class={tab === k ? 'on' : ''} onClick={() => go(k)}>
