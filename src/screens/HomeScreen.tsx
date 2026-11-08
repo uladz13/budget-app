@@ -1,11 +1,13 @@
 import { db, getLastBackup } from '../db';
-import { daysSince, shortDate } from '../util';
+import { daysSince, shortDate, todayIso } from '../util';
+import { buildReport, currenciesInPeriod, monthPeriod } from '../reports';
+import { monthLabel, monthOf } from '../operations';
 import { useLive } from '../hooks';
 import { go } from '../router';
 import { accountBalances, groupTotals, sortAccounts } from '../balances';
 import { formatMoney } from '../money';
 import { AccountRow, GROUP_LABEL } from './AccountsScreen';
-import type { Account, AccountGroup } from '../types';
+import type { Account, AccountGroup, Transaction } from '../types';
 
 export function HomeScreen() {
   const accounts = useLive(() => db.accounts.toArray(), []);
@@ -33,6 +35,7 @@ export function HomeScreen() {
           </button>
         </div>
       )}
+      <MonthCard accounts={accounts} transactions={transactions} />
       {active.length === 0 ? (
         <section class="card center">
           <p class="muted">Добавьте счета — карты, наличные, накопления — с текущими остатками.</p>
@@ -46,6 +49,53 @@ export function HomeScreen() {
         ))
       )}
     </div>
+  );
+}
+
+/**
+ * Текущий месяц (BA-004, п. 11): доходы, расходы и разница по правилам отчёта, по каждой валюте —
+ * свой блок (друг под другом). Нажатие — «Отчёты». Нет доходов и расходов — карточки нет.
+ */
+function MonthCard({ accounts, transactions }: { accounts: Account[]; transactions: Transaction[] }) {
+  const month = monthOf(todayIso());
+  const p = monthPeriod(month);
+  const reports = currenciesInPeriod(transactions, accounts, p).map((c) => ({ currency: c, r: buildReport(transactions, accounts, p, c) }));
+  if (!reports.length) return null;
+  return (
+    <button class="card month-card" onClick={() => go('reports')}>
+      <div class="eyebrow row-between">
+        <span>{monthLabel(month)}</span>
+        <span>›</span>
+      </div>
+      <div class={'month-cols' + (reports.length > 1 ? ' multi' : '')}>
+        {reports.map(({ currency, r }) => (
+          <div class="month-col">
+            {reports.length > 1 && <div class="cur">{currency}</div>}
+            <div class="sum-row">
+              <span>Доходы</span>
+              <span class="num income">+{formatMoney(r.income, currency)}</span>
+            </div>
+            <div class="sum-row">
+              <span>Расходы</span>
+              <span class="num expense">−{formatMoney(r.expense, currency)}</span>
+            </div>
+            <div class="sum-row total">
+              <span>Разница</span>
+              <span class={'num ' + (r.net >= 0 ? 'income' : 'expense')}>
+                {r.net >= 0 ? '+' : ''}
+                {formatMoney(r.net, currency)}
+              </span>
+            </div>
+            {r.fromSavings > 0 && (
+              <div class="sum-row muted small">
+                <span>Из накоплений</span>
+                <span class="num">−{formatMoney(r.fromSavings, currency)}</span>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </button>
   );
 }
 

@@ -53,7 +53,7 @@ export function App() {
   }
 
   let screen;
-  if (page === 'transactions') screen = <TransactionsScreen />;
+  if (page === 'transactions') screen = <TransactionsScreen key={route.join('/')} initialMonth={route[1]} initialCategory={route[2]} />;
   else if (page === 'reports') screen = <ReportsScreen />;
   else if (page === 'more') screen = <MoreScreen />;
   else if (page === 'accounts') screen = <AccountsScreen />;

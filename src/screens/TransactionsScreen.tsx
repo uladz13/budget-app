@@ -8,13 +8,14 @@ import { OperationForm } from '../components/OperationForm';
 import { todayIso } from '../util';
 import type { Account, Category, Transaction } from '../types';
 
-export function TransactionsScreen() {
+/** `#/transactions/2026-11/5` — открыть с месяцем и фильтром по категории (переход из «Отчётов»). */
+export function TransactionsScreen({ initialMonth, initialCategory }: { initialMonth?: string; initialCategory?: string }) {
   const accounts = useLive(() => db.accounts.toArray(), []);
   const categories = useLive(() => db.categories.toArray(), []);
   const transactions = useLive(() => db.transactions.toArray(), []);
-  const [month, setMonth] = useState(() => monthOf(todayIso()));
+  const [month, setMonth] = useState(() => (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth) ? initialMonth : monthOf(todayIso())));
   const [accountId, setAccountId] = useState<number | undefined>();
-  const [categoryId, setCategoryId] = useState<number | undefined>();
+  const [categoryId, setCategoryId] = useState<number | undefined>(() => (initialCategory ? Number(initialCategory) || undefined : undefined));
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Transaction | null>(null);
 
