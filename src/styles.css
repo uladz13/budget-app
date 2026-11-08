@@ -110,6 +110,16 @@ input[type='date'].text-input { color-scheme: dark; }
 .app-banner .chip { flex: none; }
 .chip.accent { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
 
+/* Бэкап */
+.backup { display: flex; flex-direction: column; gap: 8px; }
+.backup p { margin: 0; }
+.ok-text { color: var(--income); }
+.hint-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: #2b2615; color: #f0d58a; border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.hint-banner .chip { flex: none; }
+.compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.compare > div { background: var(--card-2); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.warn-box { margin: 0; background: #3a1d1f; color: #ffb4ab; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+
 /* Диагностика */
 .diag-log { display: flex; flex-direction: column; gap: 6px; font: 12px/1.45 ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace; user-select: text; }
 .diag-row { padding-bottom: 6px; border-bottom: 1px solid var(--line); word-break: break-word; }

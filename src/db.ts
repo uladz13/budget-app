@@ -1,10 +1,11 @@
 import Dexie, { type Table } from 'dexie';
 import type { Account, Category, Meta, Transaction } from './types';
-import { ADDED_IN_V3, DEFAULT_CATEGORIES } from './data/categories';
+import { ADDED_IN_V3, DEFAULT_CATEGORIES, withMissingDefaults } from './data/categories';
 import { kindOf, type OperationKind } from './operations';
 import { logEvent, now, recordTransaction } from './diagStore';
 import { formatMs } from './diagnostics';
 import { getAppState, setAppState } from './appState';
+import type { BackupData } from './backup';
 
 /**
  * Хранилище — только через этот модуль. Схема меняется только новой `version(n)` с миграцией;
@@ -48,16 +49,9 @@ async function seedCategories(table: Table<Category, number>): Promise<void> {
  * категорий выравнивается по стартовому набору; категории пользователя остаются после них в своём порядке.
  */
 async function addMissingDefaults(table: Table<Category, number>, names: string[]): Promise<void> {
-  const existing = (await table.toArray()).filter((c) => c.kind === 'expense');
-  const have = new Set(existing.map((c) => c.name));
-  const defaults = DEFAULT_CATEGORIES.filter((c) => c.kind === 'expense');
-  const missing = defaults.filter((c) => names.includes(c.name) && !have.has(c.name));
-  if (!missing.length) return;
-  await table.bulkAdd(missing.map((c) => ({ ...c })));
-  const rank = new Map(defaults.map((c) => [c.name, c.order]));
-  const all = (await table.toArray()).filter((c) => c.kind === 'expense');
-  const sorted = all.sort((a, b) => (rank.get(a.name) ?? 1000 + a.order) - (rank.get(b.name) ?? 1000 + b.order));
-  await Promise.all(sorted.map((c, i) => table.update(c.id!, { order: i + 1 })));
+  const before = await table.toArray();
+  const after = withMissingDefaults(before, names);
+  if (after !== before) await table.bulkPut(after);
 }
 
 export const db = new BudgetDB();
@@ -144,6 +138,43 @@ export function explainDbError(e: unknown): string {
 /** База открыта (если её закрыли — например, при обновлении схемы другой копией, — открыть заново). */
 export async function ensureOpen(): Promise<void> {
   if (!db.isOpen()) await db.open();
+}
+
+// ---- Бэкап (BA-005) ----
+
+/** Все данные пользователя для бэкапа. */
+export async function readAllData(): Promise<BackupData> {
+  return db.transaction('r', db.accounts, db.transactions, db.categories, db.meta, async () => ({
+    accounts: await db.accounts.toArray(),
+    transactions: await db.transactions.toArray(),
+    categories: await db.categories.toArray(),
+    meta: await db.meta.toArray()
+  }));
+}
+
+/**
+ * Заменить все данные данными бэкапа — одной транзакцией: при любой ошибке остаются прежние данные
+ * (decisions.md п. 34). Дата последнего бэкапа этого телефона сохраняется.
+ */
+export async function replaceAllData(data: BackupData): Promise<void> {
+  await db.transaction('rw', db.accounts, db.transactions, db.categories, db.meta, async () => {
+    const lastBackup = await db.meta.get('lastBackup');
+    await Promise.all([db.accounts.clear(), db.transactions.clear(), db.categories.clear(), db.meta.clear()]);
+    await db.accounts.bulkAdd(data.accounts);
+    await db.categories.bulkAdd(data.categories);
+    await db.transactions.bulkAdd(data.transactions);
+    await db.meta.bulkPut(data.meta);
+    if (lastBackup) await db.meta.put(lastBackup);
+  });
+}
+
+/** Дата последнего сохранённого бэкапа (ISO) или undefined. */
+export async function getLastBackup(): Promise<string | undefined> {
+  return (await db.meta.get('lastBackup'))?.value as string | undefined;
+}
+
+export async function markBackup(at: string): Promise<void> {
+  await db.meta.put({ key: 'lastBackup', value: at });
 }
 
 // ---- Операции ----

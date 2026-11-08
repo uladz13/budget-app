@@ -1,4 +1,5 @@
 import { go } from '../router';
+import { BackupCard } from '../components/BackupCard';
 
 export function MoreScreen() {
   return (
@@ -22,7 +23,8 @@ export function MoreScreen() {
           <span class="muted">›</span>
         </button>
       </section>
-      <p class="muted small center">Бюджет · версия 0.2.1</p>
+      <BackupCard />
+      <p class="muted small center">Бюджет · версия 0.3.0</p>
     </div>
   );
 }
