@@ -15,6 +15,13 @@ export function MoreScreen() {
           </span>
           <span class="muted">›</span>
         </button>
+        <button class="list-row" onClick={() => go('categories')}>
+          <span class="row-main">
+            <span class="row-title">Категории</span>
+            <span class="muted small">Добавить, переименовать, скрыть, порядок</span>
+          </span>
+          <span class="muted">›</span>
+        </button>
         <button class="list-row" onClick={() => go('diag')}>
           <span class="row-main">
             <span class="row-title">Диагностика</span>
@@ -24,7 +31,7 @@ export function MoreScreen() {
         </button>
       </section>
       <BackupCard />
-      <p class="muted small center">Бюджет · версия 0.3.0</p>
+      <p class="muted small center">Бюджет · версия 0.4.0</p>
     </div>
   );
 }

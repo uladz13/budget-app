@@ -58,12 +58,12 @@ export function TransactionsScreen() {
           <option value="">Все категории</option>
           <optgroup label="Расходы">
             {sortedCats('expense').map((c) => (
-              <option value={String(c.id)}>{c.name}</option>
+              <option value={String(c.id)}>{c.name}{c.hidden ? " (скрыта)" : ""}</option>
             ))}
           </optgroup>
           <optgroup label="Доходы">
             {sortedCats('income').map((c) => (
-              <option value={String(c.id)}>{c.name}</option>
+              <option value={String(c.id)}>{c.name}{c.hidden ? " (скрыта)" : ""}</option>
             ))}
           </optgroup>
         </select>

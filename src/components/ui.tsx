@@ -43,7 +43,10 @@ export function AsyncButton({
   busyLabel = 'Сохранение…',
   disabled,
   onBusy,
-  name = 'Сохранение'
+  name = 'Сохранение',
+  compact,
+  ariaLabel,
+  onError
 }: {
   onClick: () => Promise<unknown>;
   children: ComponentChildren;
@@ -53,6 +56,10 @@ export function AsyncButton({
   onBusy?: (busy: boolean) => void;
   /** Название действия для журнала диагностики («Операция · сохранить»). */
   name?: string;
+  /** Маленькая кнопка (↑ ↓): во время действия — только спиннер, ошибка — через `onError`. */
+  compact?: boolean;
+  ariaLabel?: string;
+  onError?: (message: string) => void;
 }) {
   const running = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -86,6 +93,7 @@ export function AsyncButton({
       ok = false;
       message = `${(err as Error)?.name ?? 'Error'}: ${(err as Error)?.message ?? String(err)}`;
       setError('Не удалось сохранить: ' + explainDbError(err));
+      onError?.('Не удалось сохранить: ' + explainDbError(err));
     } finally {
       tAction = now();
       clearTimeout(slow);
@@ -111,17 +119,24 @@ export function AsyncButton({
 
   return (
     <>
-      <button type="button" class={cls + (busy ? ' busy' : '')} onClick={run} disabled={disabled || busy} aria-busy={busy}>
+      <button
+        type="button"
+        class={cls + (busy ? ' busy' : '')}
+        onClick={run}
+        disabled={disabled || busy}
+        aria-busy={busy}
+        aria-label={ariaLabel}
+      >
         {busy ? (
           <>
             <span class="spinner" aria-hidden="true" />
-            {slowHint ? `${busyLabel} это дольше обычного` : busyLabel}
+            {!compact && (slowHint ? `${busyLabel} это дольше обычного` : busyLabel)}
           </>
         ) : (
           children
         )}
       </button>
-      {error && <p class="error-text">{error}</p>}
+      {error && !compact && <p class="error-text">{error}</p>}
     </>
   );
 }

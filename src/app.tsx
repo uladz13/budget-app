@@ -9,6 +9,7 @@ import { MoreScreen } from './screens/MoreScreen';
 import { AccountsScreen } from './screens/AccountsScreen';
 import { OperationForm } from './components/OperationForm';
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen';
+import { CategoriesScreen } from './screens/CategoriesScreen';
 import { logEvent } from './diagStore';
 import { formatMs } from './diagnostics';
 
@@ -57,6 +58,7 @@ export function App() {
   else if (page === 'more') screen = <MoreScreen />;
   else if (page === 'accounts') screen = <AccountsScreen />;
   else if (page === 'diag') screen = <DiagnosticsScreen />;
+  else if (page === 'categories') screen = <CategoriesScreen />;
   else screen = <HomeScreen />;
 
   /** Какая вкладка подсвечена для экрана. */
@@ -66,7 +68,8 @@ export function App() {
     reports: 'reports',
     more: 'more',
     accounts: 'more',
-    diag: 'more'
+    diag: 'more',
+    categories: 'more'
   };
   const tab = GROUP[page] ?? 'home';
   const nav: [string, string][] = [

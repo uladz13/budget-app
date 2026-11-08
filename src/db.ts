@@ -6,6 +6,7 @@ import { logEvent, now, recordTransaction } from './diagStore';
 import { formatMs } from './diagnostics';
 import { getAppState, setAppState } from './appState';
 import type { BackupData } from './backup';
+import type { OrderUpdate } from './categories';
 
 /**
  * Хранилище — только через этот модуль. Схема меняется только новой `version(n)` с миграцией;
@@ -138,6 +139,38 @@ export function explainDbError(e: unknown): string {
 /** База открыта (если её закрыли — например, при обновлении схемы другой копией, — открыть заново). */
 export async function ensureOpen(): Promise<void> {
   if (!db.isOpen()) await db.open();
+}
+
+// ---- Категории (BA-003) ----
+
+/** Создать (без id) или изменить категорию. */
+export async function saveCategory(category: Category): Promise<number> {
+  return db.categories.put(category);
+}
+
+export async function setCategoryHidden(id: number, hidden: boolean): Promise<void> {
+  await db.categories.update(id, { hidden });
+}
+
+/** Записать новый порядок категорий (одной транзакцией). */
+export async function applyCategoryOrder(updates: OrderUpdate[]): Promise<void> {
+  if (!updates.length) return;
+  await db.transaction('rw', db.categories, async () => {
+    for (const u of updates) await db.categories.update(u.id, { order: u.order });
+  });
+}
+
+/** Сколько операций с этой категорией (удалятся вместе с ней). */
+export async function countCategoryOperations(id: number): Promise<number> {
+  return db.transactions.filter((t) => t.categoryId === id).count();
+}
+
+/** Удалить категорию вместе с её операциями одной транзакцией (decisions.md п. 37). */
+export async function deleteCategory(id: number): Promise<void> {
+  await db.transaction('rw', db.categories, db.transactions, async () => {
+    await db.transactions.filter((t) => t.categoryId === id).delete();
+    await db.categories.delete(id);
+  });
 }
 
 // ---- Бэкап (BA-005) ----
