@@ -1,4 +1,6 @@
+import { useState } from 'preact/hooks';
 import { db, getLastBackup } from '../db';
+import { closeIosHomeHint, needIosHomeHint } from '../share';
 import { daysSince, shortDate, todayIso } from '../util';
 import { buildReport, currenciesInPeriod, monthPeriod } from '../reports';
 import { monthLabel, monthOf } from '../operations';
@@ -14,6 +16,8 @@ export function HomeScreen() {
   const transactions = useLive(() => db.transactions.toArray(), []);
   /** null — бэкапа ещё не было, undefined — загружается. */
   const lastBackup = useLive(async () => (await getLastBackup()) ?? null, []);
+  // iPhone в Safari (не с экрана «Домой») — подсказка про установку (BA-015).
+  const [iosHint, setIosHint] = useState(needIosHomeHint);
   if (!accounts || !transactions) return <div class="loading">Загрузка…</div>;
 
   const balances = accountBalances(transactions);
@@ -27,6 +31,23 @@ export function HomeScreen() {
       <div class="screen-head">
         <h1>Главная</h1>
       </div>
+      {iosHint && (
+        <div class="hint-banner ios-hint">
+          <span>
+            На iPhone добавьте «Бюджет» на экран «Домой»: кнопка «Поделиться» внизу Safari → «На экран „Домой“». Иначе iOS может удалить
+            данные, если долго не открывать приложение.
+          </span>
+          <button
+            class="chip"
+            onClick={() => {
+              closeIosHomeHint();
+              setIosHint(false);
+            }}
+          >
+            Понятно
+          </button>
+        </div>
+      )}
       {remind && (
         <div class="hint-banner">
           <span>{lastBackup ? `Бэкап не сохраняли с ${shortDate(lastBackup)}.` : 'Бэкап ещё ни разу не сохраняли.'}</span>

@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks';
 import { getLastBackup, markBackup, readAllData, replaceAllData, SCHEMA_VERSION } from '../db';
 import { useLive } from '../hooks';
 import { backupFileName, buildBackup, parseBackup, summarize, type BackupData } from '../backup';
-import { saveTextFile } from '../share';
+import { fileAccept, saveTextFile } from '../share';
 import { shortDate, todayIso } from '../util';
 import { AsyncButton, Sheet } from './ui';
 
@@ -67,7 +67,7 @@ export function BackupCard() {
         </AsyncButton>
         <label class="btn">
           Загрузить файл
-          <input type="file" accept="application/json,.json" hidden onChange={pick} />
+          <input type="file" accept={fileAccept("application/json,.json")} hidden onChange={pick} />
         </label>
       </div>
       {msg && <p class="small ok-text">{msg}</p>}

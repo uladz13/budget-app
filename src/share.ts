@@ -11,7 +11,49 @@ export type SaveResult = 'shared' | 'downloaded' | 'cancelled';
 function isMobileDevice(): boolean {
   const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
   if (typeof nav.userAgentData?.mobile === 'boolean') return nav.userAgentData.mobile;
-  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  return isIOS() || /Android|Mobile/i.test(navigator.userAgent);
+}
+
+/** iPhone / iPad (iPadOS выдаёт себя за Mac, но с сенсорным экраном). */
+export function isIOS(): boolean {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+}
+
+/** Открыто как приложение с экрана «Домой» (а не во вкладке браузера). */
+export function isStandalone(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return nav.standalone === true || (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches);
+}
+
+const IOS_HINT_KEY = 'budget-app:ios-home-hint-closed';
+
+/**
+ * Показывать ли подсказку «Добавьте на экран «Домой»» (BA-015, п. 3): iPhone / iPad, открыто в Safari
+ * (не с экрана «Домой») и подсказку ещё не закрывали на этом устройстве.
+ */
+export function needIosHomeHint(): boolean {
+  if (!isIOS() || isStandalone()) return false;
+  try {
+    return localStorage.getItem(IOS_HINT_KEY) !== '1';
+  } catch {
+    return true;
+  }
+}
+
+export function closeIosHomeHint(): void {
+  try {
+    localStorage.setItem(IOS_HINT_KEY, '1');
+  } catch {
+    /* хранилище недоступно — подсказка покажется снова, не страшно */
+  }
+}
+
+/**
+ * Ограничение типов для выбора файла. На iOS не ограничиваем: «Файлы» иногда делают `.json` / `.csv`
+ * недоступными для выбора; неподходящий файл приложение и так отклонит с понятной ошибкой (BA-015).
+ */
+export function fileAccept(types: string): string | undefined {
+  return isIOS() ? undefined : types;
 }
 
 export async function saveTextFile(name: string, text: string, type = 'application/json'): Promise<SaveResult> {

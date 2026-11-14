@@ -3,7 +3,7 @@ import { applyCatalog, db, deleteProduct, saveProduct } from '../db';
 import { useLive } from '../hooks';
 import { go } from '../router';
 import { amountToInput, formatMoney, parseAmount } from '../money';
-import { saveTextFile } from '../share';
+import { fileAccept, saveTextFile } from '../share';
 import { todayIso } from '../util';
 import { catalogToCsv, findProduct, mergeCatalog, parseCatalogCsv, productsOfSection, searchProducts, type MergeResult } from '../shopping';
 import { plural } from '../backup';
@@ -118,7 +118,7 @@ export function CatalogScreen() {
           </AsyncButton>
           <label class="btn">
             Загрузить
-            <input type="file" accept=".csv,text/csv,text/plain" hidden onChange={pickCsv} />
+            <input type="file" accept={fileAccept(".csv,text/csv,text/plain")} hidden onChange={pickCsv} />
           </label>
         </div>
         {msg && <p class="small ok-text">{msg}</p>}

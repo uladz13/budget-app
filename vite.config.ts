@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       // 'prompt': новая версия ждёт нажатия «Обновить» или следующего запуска (BA-008).
       registerType: 'prompt',
-      includeAssets: ['icon-192.png', 'icon-512.png'],
+      includeAssets: ['icon-180.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Бюджет',
         short_name: 'Бюджет',
