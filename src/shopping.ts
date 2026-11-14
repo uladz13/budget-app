@@ -4,6 +4,7 @@
  */
 import { DEFAULT_PRODUCTS, DEFAULT_SECTIONS } from './data/shopCatalog';
 import { parseAmount } from './money';
+import { csvAmount, csvDocument } from './csv';
 import type { ShopList, ShopListItem, ShopMark, ShopProduct, ShopSection } from './types';
 
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru');
@@ -243,12 +244,10 @@ export function parseCatalogCsv(text: string): CsvResult {
   return { rows, errors };
 }
 
-/** Поле CSV: в кавычках, если есть разделитель, кавычки или перенос строки. */
-const csvField = (s: string) => (/[;"\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
-
 /**
  * Справочник в CSV — тот же формат, что читает `parseCatalogCsv`: «название;цена;раздел», цена с запятой,
- * BOM для Excel. Порядок — по разделам (как в списке), внутри — по алфавиту; без раздела — в конце.
+ * BOM для Excel (общие правила — `csv.ts`). Порядок — по разделам (как в списке), внутри — по алфавиту;
+ * без раздела — в конце.
  */
 export function catalogToCsv(products: ShopProduct[], sections: ShopSection[]): string {
   const sorted = [...sections].sort((a, b) => a.order - b.order);
@@ -257,12 +256,8 @@ export function catalogToCsv(products: ShopProduct[], sections: ShopSection[]): 
   const key = (p: ShopProduct) => (p.sectionId != null && rank.has(p.sectionId) ? rank.get(p.sectionId)! : sorted.length);
   const rows = [...products]
     .sort((a, b) => key(a) - key(b) || a.name.localeCompare(b.name, 'ru'))
-    .map((p) => {
-      const euro = (p.price / 100).toFixed(2).replace('.', ',');
-      const section = p.sectionId != null ? name.get(p.sectionId) ?? '' : '';
-      return [csvField(p.name), euro, csvField(section)].join(';');
-    });
-  return '﻿' + ['название;цена;раздел', ...rows].join('\r\n') + '\r\n';
+    .map((p) => [p.name, csvAmount(p.price, 'EUR'), p.sectionId != null ? name.get(p.sectionId) ?? '' : '']);
+  return csvDocument(['название', 'цена', 'раздел'], rows);
 }
 
 export interface MergeResult {

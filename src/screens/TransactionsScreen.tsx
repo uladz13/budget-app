@@ -17,7 +17,9 @@ import {
 import { OperationForm } from '../components/OperationForm';
 import { MultiPick } from '../components/MultiPick';
 import { monthPeriod, type Period } from '../reports';
-import { Seg } from '../components/ui';
+import { AsyncButton, Seg } from '../components/ui';
+import { transactionsFileName, transactionsToCsv } from '../csv';
+import { saveTextFile } from '../share';
 import { todayIso } from '../util';
 import type { Account, Category, Transaction } from '../types';
 
@@ -45,6 +47,7 @@ export function TransactionsScreen({ initialMonth, initialCategory }: { initialM
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [picking, setPicking] = useState<'accounts' | 'categories' | null>(null);
+  const [exportMsg, setExportMsg] = useState('');
 
   if (!accounts || !categories || !transactions) return <div class="loading">Загрузка…</div>;
 
@@ -73,7 +76,23 @@ export function TransactionsScreen({ initialMonth, initialCategory }: { initialM
     <div class="screen">
       <div class="screen-head">
         <h1>Операции</h1>
+        <AsyncButton
+          class="chip"
+          name="Операции · выгрузить CSV"
+          busyLabel="…"
+          disabled={!filtered.length}
+          onClick={async () => {
+            setExportMsg('');
+            // Ровно то, что отобрано на экране (BA-012, п. 1).
+            const csv = transactionsToCsv(filtered, accounts, categories);
+            const res = await saveTextFile(transactionsFileName(mode === 'month' ? { month, from, to } : { from, to }), csv, 'text/csv');
+            if (res === 'downloaded') setExportMsg('Файл CSV скачан — он в папке «Загрузки».');
+          }}
+        >
+          Выгрузить CSV
+        </AsyncButton>
       </div>
+      {exportMsg && <p class="small ok-text">{exportMsg}</p>}
 
       <Seg value={mode} onChange={setMode} options={[['month', 'Месяц'], ['period', 'Период']]} fill />
 

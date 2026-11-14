@@ -1,14 +1,23 @@
 /**
- * Сохранение файла на телефоне (браузерные API — изолированно, с проверкой поддержки).
- * Android: системное меню «Поделиться» (Диск, Telegram, Файлы…); без поддержки — обычное скачивание.
+ * Сохранение файла (браузерные API — изолированно, с проверкой поддержки).
+ * Телефон: системное меню «Поделиться» (Диск, Telegram, Файлы…). Компьютер: обычное скачивание —
+ * Chrome на Windows тоже умеет «делиться» файлами, но там ждут окно сохранения (правка после BA-012).
+ * Без поддержки «Поделиться» или при ошибке — скачивание.
  */
 
 export type SaveResult = 'shared' | 'downloaded' | 'cancelled';
 
+/** Телефон или планшет: по User-Agent Client Hints, иначе по строке браузера. */
+function isMobileDevice(): boolean {
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (typeof nav.userAgentData?.mobile === 'boolean') return nav.userAgentData.mobile;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
 export async function saveTextFile(name: string, text: string, type = 'application/json'): Promise<SaveResult> {
   const blob = new Blob([text], { type });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (typeof File === 'function' && nav.canShare && navigator.share) {
+  if (isMobileDevice() && typeof File === 'function' && nav.canShare && navigator.share) {
     const file = new File([blob], name, { type });
     if (nav.canShare({ files: [file] })) {
       try {

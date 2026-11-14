@@ -14,7 +14,9 @@ import {
   type Period
 } from '../reports';
 import { MonthChart } from '../components/MonthChart';
-import { Seg } from '../components/ui';
+import { AsyncButton, Seg } from '../components/ui';
+import { reportFileName, reportToCsv } from '../csv';
+import { saveTextFile } from '../share';
 import { todayIso } from '../util';
 import type { Category, Currency } from '../types';
 
@@ -30,6 +32,7 @@ export function ReportsScreen() {
   const [month, setMonth] = useState(() => monthOf(today));
   const [period, setPeriod] = useState<Period>(() => ({ from: `${monthOf(today)}-01`, to: today }));
   const [currency, setCurrency] = useState<Currency>('EUR');
+  const [exportMsg, setExportMsg] = useState('');
 
   if (!accounts || !categories || !transactions) return <div class="loading">Загрузка…</div>;
 
@@ -51,7 +54,28 @@ export function ReportsScreen() {
     <div class="screen">
       <div class="screen-head">
         <h1>Отчёты</h1>
+        <AsyncButton
+          class="chip"
+          name="Отчёты · выгрузить CSV"
+          busyLabel="…"
+          disabled={badPeriod || !currencies.length}
+          onClick={async () => {
+            setExportMsg('');
+            // Текущий отчёт по всем валютам периода; «По месяцам» — только в режиме месяца (BA-013).
+            const parts = currencies.map((c) => ({
+              currency: c,
+              report: buildReport(transactions, accounts, p, c),
+              months: mode === 'month' ? monthlyExpenses(transactions, accounts, month, c) : undefined
+            }));
+            const name = (id?: number) => (id == null ? 'Без категории' : catName.get(id)?.name ?? 'Удалённая категория');
+            const res = await saveTextFile(reportFileName(mode === 'month' ? { month, ...p } : p), reportToCsv(parts, name), 'text/csv');
+            if (res === 'downloaded') setExportMsg('Файл CSV скачан — он в папке «Загрузки».');
+          }}
+        >
+          Выгрузить CSV
+        </AsyncButton>
       </div>
+      {exportMsg && <p class="small ok-text">{exportMsg}</p>}
 
       <Seg value={mode} onChange={setMode} options={[['month', 'Месяц'], ['period', 'Период']]} fill />
 
