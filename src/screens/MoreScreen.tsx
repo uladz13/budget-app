@@ -31,7 +31,7 @@ export function MoreScreen() {
         </button>
       </section>
       <BackupCard />
-      <p class="muted small center">Бюджет · версия 0.6.0</p>
+      <p class="muted small center">Бюджет · версия 0.7.0</p>
     </div>
   );
 }

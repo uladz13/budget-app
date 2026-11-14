@@ -115,24 +115,88 @@ export function dayLabel(date: string): string {
 // ---- Список ----
 
 export interface OperationFilter {
-  month: string;
-  accountId?: number;
-  categoryId?: number;
+  /** Период включительно, `YYYY-MM-DD` (месяц — с 1-го по последнее число). */
+  from: string;
+  to: string;
+  /** Пусто или нет — все счета; иначе операции, где счёт списания или зачисления — один из выбранных (BA-009). */
+  accountIds?: number[];
+  /** Пусто или нет — все категории; иначе — одна из выбранных. */
+  categoryIds?: number[];
   /** Поиск по комментарию, без учёта регистра. */
   query?: string;
 }
 
-/** Операции для списка: без начальных остатков (decisions.md п. 27), в выбранном месяце и по фильтрам. */
+/**
+ * Операции для списка: без начальных остатков (decisions.md п. 27), в периоде и по фильтрам.
+ * Внутри счетов и внутри категорий — «или», между фильтрами — «и» (BA-009).
+ */
 export function filterOperations(txs: Transaction[], f: OperationFilter): Transaction[] {
   const q = f.query?.trim().toLowerCase();
+  const acc = f.accountIds?.length ? new Set(f.accountIds) : null;
+  const cat = f.categoryIds?.length ? new Set(f.categoryIds) : null;
   return txs.filter(
     (t) =>
       t.type !== 'opening' &&
-      monthOf(t.date) === f.month &&
-      (f.accountId == null || t.accountId === f.accountId || t.toAccountId === f.accountId) &&
-      (f.categoryId == null || t.categoryId === f.categoryId) &&
+      t.date >= f.from &&
+      t.date <= f.to &&
+      (!acc || acc.has(t.accountId) || (t.toAccountId != null && acc.has(t.toAccountId))) &&
+      (!cat || (t.categoryId != null && cat.has(t.categoryId))) &&
       (!q || (t.note ?? '').toLowerCase().includes(q))
   );
+}
+
+/** Подпись кнопки фильтра: ничего не выбрано — `all`, одно — его название, больше — «Карта +2» (BA-009). */
+export function selectionLabel(selectedNames: string[], all: string): string {
+  if (!selectedNames.length) return all;
+  return selectedNames.length === 1 ? selectedNames[0] : `${selectedNames[0]} +${selectedNames.length - 1}`;
+}
+
+export interface FilterTotals {
+  currency: Currency;
+  income: number;
+  /** Все расходы отобранных операций, включая счета накоплений (BA-011, п. 2). */
+  expense: number;
+  /** income − expense. */
+  net: number;
+  /** Переводы и обмены на выбранные счета с других — только при фильтре по счёту. */
+  transferIn: number;
+  /** Переводы и обмены с выбранных счетов на другие. */
+  transferOut: number;
+}
+
+const CURRENCY_ORDER: Currency[] = ['EUR', 'USD', 'BYN'];
+
+/**
+ * Итоги по отфильтрованным операциям (BA-011) — по каждой валюте отдельно; валюты без сумм не показываются.
+ * Доходы и расходы — в валюте счёта. Переводы и обмены в доходы и расходы не входят; при фильтре по счетам
+ * считаются «пришло / ушло» — только между выбранными и остальными счетами (внутренние не считаются).
+ */
+export function filterTotals(filtered: Transaction[], accounts: Account[], accountIds?: number[]): FilterTotals[] {
+  const cur = new Map(accounts.map((a) => [a.id!, a.currency]));
+  const sel = accountIds?.length ? new Set(accountIds) : null;
+  const res = new Map<Currency, FilterTotals>();
+  const get = (c: Currency) => {
+    if (!res.has(c)) res.set(c, { currency: c, income: 0, expense: 0, net: 0, transferIn: 0, transferOut: 0 });
+    return res.get(c)!;
+  };
+  for (const t of filtered) {
+    const c = cur.get(t.accountId);
+    if (!c) continue;
+    if (t.type === 'income') get(c).income += t.amount;
+    else if (t.type === 'expense') get(c).expense += t.amount;
+    else if ((t.type === 'transfer' || t.type === 'exchange') && sel && t.toAccountId != null) {
+      const fromSel = sel.has(t.accountId);
+      const toSel = sel.has(t.toAccountId);
+      if (fromSel && !toSel) get(c).transferOut += t.amount;
+      if (toSel && !fromSel) {
+        const tc = cur.get(t.toAccountId);
+        if (tc) get(tc).transferIn += t.toAmount ?? t.amount;
+      }
+    }
+  }
+  return CURRENCY_ORDER.filter((c) => res.has(c))
+    .map((c) => ({ ...res.get(c)!, net: res.get(c)!.income - res.get(c)!.expense }))
+    .filter((x) => x.income || x.expense || x.transferIn || x.transferOut);
 }
 
 export interface DayGroup {

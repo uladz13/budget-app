@@ -10,7 +10,6 @@ import {
   currenciesInPeriod,
   monthlyExpenses,
   monthPeriod,
-  singleMonth,
   type CategoryLine,
   type Period
 } from '../reports';
@@ -42,7 +41,8 @@ export function ReportsScreen() {
   const report = buildReport(transactions, accounts, p, cur);
   const catName = new Map(categories.map((c) => [c.id!, c] as [number, Category]));
   const empty = !report.income && !report.expense && !report.fromSavings;
-  const linkMonth = singleMonth(p);
+  // Куда ведёт нажатие на категорию: месяц или тот же свой период (BA-010, п. 4).
+  const linkRange = mode === 'month' ? month : `${p.from}_${p.to}`;
   const compareText = mode === 'month' ? 'к прошлому месяцу' : 'к предыдущему периоду той же длины';
 
   const points = mode === 'month' ? monthlyExpenses(transactions, accounts, month, cur) : [];
@@ -120,7 +120,7 @@ export function ReportsScreen() {
                   name={l.categoryId != null ? catName.get(l.categoryId)?.name ?? 'Удалённая категория' : 'Без категории'}
                   max={report.expenseByCategory[0].amount}
                   currency={cur}
-                  onClick={linkMonth && l.categoryId != null ? () => go(`transactions/${linkMonth}/${l.categoryId}`) : undefined}
+                  onClick={l.categoryId != null ? () => go(`transactions/${linkRange}/${l.categoryId}`) : undefined}
                 />
               ))}
             </section>

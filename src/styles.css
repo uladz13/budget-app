@@ -97,6 +97,25 @@ input[type='date'].text-input { color-scheme: dark; }
 .filters .text-input { padding: 10px 12px; font-size: 15px; min-width: 0; }
 .filters .search { grid-column: 1 / -1; }
 .filters .link { grid-column: 1 / -1; justify-self: start; }
+.filter-btn { display: flex; align-items: center; justify-content: space-between; gap: 6px; text-align: left; min-width: 0; }
+.filter-btn::after { content: '▾'; color: var(--muted); flex: none; }
+.filter-btn.on { border-color: var(--accent); color: var(--accent); }
+.filter-totals { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; }
+.ft-block + .ft-block { border-top: 1px solid var(--line); padding-top: 10px; }
+.ft-cur { font-size: 12px; color: var(--muted); font-weight: 600; letter-spacing: 0.04em; margin-bottom: 4px; }
+.ft-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ft-row .stat-value { font-size: 15px; white-space: nowrap; }
+.stat-value.expense { color: var(--expense); }
+.ft-transfers { margin-top: 6px; }
+.pick-actions { display: flex; gap: 8px; }
+.pick-list { display: flex; flex-direction: column; gap: 10px; }
+.pick-group { display: flex; flex-direction: column; }
+.pick-group .eyebrow { padding: 4px 2px; }
+.pick-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 2px; border-top: 1px solid var(--line); text-align: left; }
+.pick-group .pick-row:first-of-type { border-top: 0; }
+.pick-row .row-title { flex: 1; min-width: 0; }
+.pick-box { width: 24px; height: 24px; flex: none; border-radius: 6px; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; color: var(--accent-ink); }
+.pick-row.on .pick-box { background: var(--accent); border-color: var(--accent); }
 .day { padding-top: 10px; padding-bottom: 4px; }
 .day-head { padding: 0 2px 2px; }
 .op-row { padding: 10px 2px; }

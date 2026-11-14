@@ -3,31 +3,71 @@ import { db } from '../db';
 import { useLive } from '../hooks';
 import { sortAccounts } from '../balances';
 import { formatMoney } from '../money';
-import { dayLabel, filterOperations, groupByDay, monthLabel, monthOf, shiftMonth } from '../operations';
+import {
+  dayLabel,
+  filterOperations,
+  filterTotals,
+  groupByDay,
+  monthLabel,
+  monthOf,
+  selectionLabel,
+  shiftMonth,
+  type FilterTotals
+} from '../operations';
 import { OperationForm } from '../components/OperationForm';
+import { MultiPick } from '../components/MultiPick';
+import { monthPeriod, type Period } from '../reports';
+import { Seg } from '../components/ui';
 import { todayIso } from '../util';
 import type { Account, Category, Transaction } from '../types';
 
-/** `#/transactions/2026-11/5` — открыть с месяцем и фильтром по категории (переход из «Отчётов»). */
+const PERIOD_ROUTE = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/;
+
+/**
+ * Открыть с фильтром (переход из «Отчётов»): `#/transactions/2026-11/5` — месяц и категория,
+ * `#/transactions/2026-10-16_2026-11-04/5` — свой период и категория (BA-010).
+ */
 export function TransactionsScreen({ initialMonth, initialCategory }: { initialMonth?: string; initialCategory?: string }) {
   const accounts = useLive(() => db.accounts.toArray(), []);
   const categories = useLive(() => db.categories.toArray(), []);
   const transactions = useLive(() => db.transactions.toArray(), []);
-  const [month, setMonth] = useState(() => (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth) ? initialMonth : monthOf(todayIso())));
-  const [accountId, setAccountId] = useState<number | undefined>();
-  const [categoryId, setCategoryId] = useState<number | undefined>(() => (initialCategory ? Number(initialCategory) || undefined : undefined));
+  const today = todayIso();
+  const routePeriod = initialMonth ? PERIOD_ROUTE.exec(initialMonth) : null;
+  const [mode, setMode] = useState<'month' | 'period'>(routePeriod ? 'period' : 'month');
+  const [month, setMonth] = useState(() => (initialMonth && /^\d{4}-\d{2}$/.test(initialMonth) ? initialMonth : monthOf(today)));
+  // Период по умолчанию — с 1-го числа текущего месяца по сегодня (BA-010, п. 3).
+  const [period, setPeriod] = useState<Period>(() =>
+    routePeriod ? { from: routePeriod[1], to: routePeriod[2] } : { from: `${monthOf(today)}-01`, to: today }
+  );
+  const [accountIds, setAccountIds] = useState<number[]>([]);
+  // Переход из «Отчётов» — одна выбранная категория (BA-009, п. 4).
+  const [categoryIds, setCategoryIds] = useState<number[]>(() => (initialCategory && Number(initialCategory) ? [Number(initialCategory)] : []));
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [picking, setPicking] = useState<'accounts' | 'categories' | null>(null);
 
   if (!accounts || !categories || !transactions) return <div class="loading">Загрузка…</div>;
 
   const accById = new Map(accounts.map((a) => [a.id!, a]));
   const catById = new Map(categories.map((c) => [c.id!, c]));
-  const filtered = filterOperations(transactions, { month, accountId, categoryId, query });
+  const { from, to } = mode === 'month' ? monthPeriod(month) : period;
+  const badPeriod = !from || !to || from > to;
+  const filtered = badPeriod ? [] : filterOperations(transactions, { from, to, accountIds, categoryIds, query });
   const groups = groupByDay(filtered);
-  const hasFilter = accountId != null || categoryId != null || query.trim() !== '';
+  const hasFilter = accountIds.length > 0 || categoryIds.length > 0 || query.trim() !== '';
   const sortedCats = (kind: Category['kind']) => categories.filter((c) => c.kind === kind).sort((a, b) => a.order - b.order);
-  const num = (v: string) => (v ? Number(v) : undefined);
+  const sortedAccounts = sortAccounts(accounts);
+
+  // Выбраны все — подпись «Все …» (то же, что без фильтра).
+  const accLabel =
+    accountIds.length === accounts.length
+      ? 'Все счета'
+      : selectionLabel(sortedAccounts.filter((a) => accountIds.includes(a.id!)).map((a) => a.name), 'Все счета');
+  const catOrder = [...sortedCats('expense'), ...sortedCats('income')];
+  const catLabel =
+    categoryIds.length === categories.length
+      ? 'Все категории'
+      : selectionLabel(catOrder.filter((c) => categoryIds.includes(c.id!)).map((c) => c.name), 'Все категории');
 
   return (
     <div class="screen">
@@ -35,39 +75,38 @@ export function TransactionsScreen({ initialMonth, initialCategory }: { initialM
         <h1>Операции</h1>
       </div>
 
-      <div class="month-switch">
-        <button class="icon-btn" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="предыдущий месяц">
-          ‹
-        </button>
-        <span class="month-title">{monthLabel(month)}</span>
-        <button class="icon-btn" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="следующий месяц">
-          ›
-        </button>
-      </div>
+      <Seg value={mode} onChange={setMode} options={[['month', 'Месяц'], ['period', 'Период']]} fill />
+
+      {mode === 'month' ? (
+        <div class="month-switch">
+          <button class="icon-btn" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="предыдущий месяц">
+            ‹
+          </button>
+          <span class="month-title">{monthLabel(month)}</span>
+          <button class="icon-btn" onClick={() => setMonth(shiftMonth(month, 1))} aria-label="следующий месяц">
+            ›
+          </button>
+        </div>
+      ) : (
+        <div class="period">
+          <label class="field">
+            с
+            <input class="text-input" type="date" value={period.from} max={period.to} onInput={(e) => setPeriod({ ...period, from: (e.target as HTMLInputElement).value })} />
+          </label>
+          <label class="field">
+            по
+            <input class="text-input" type="date" value={period.to} min={period.from} onInput={(e) => setPeriod({ ...period, to: (e.target as HTMLInputElement).value })} />
+          </label>
+        </div>
+      )}
 
       <div class="filters">
-        <select class="text-input" value={accountId ?? ''} onChange={(e) => setAccountId(num((e.target as HTMLSelectElement).value))}>
-          <option value="">Все счета</option>
-          {sortAccounts(accounts).map((a) => (
-            <option value={String(a.id)}>
-              {a.name}
-              {a.archived ? ' (архив)' : ''}
-            </option>
-          ))}
-        </select>
-        <select class="text-input" value={categoryId ?? ''} onChange={(e) => setCategoryId(num((e.target as HTMLSelectElement).value))}>
-          <option value="">Все категории</option>
-          <optgroup label="Расходы">
-            {sortedCats('expense').map((c) => (
-              <option value={String(c.id)}>{c.name}{c.hidden ? " (скрыта)" : ""}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Доходы">
-            {sortedCats('income').map((c) => (
-              <option value={String(c.id)}>{c.name}{c.hidden ? " (скрыта)" : ""}</option>
-            ))}
-          </optgroup>
-        </select>
+        <button class={'text-input filter-btn' + (accountIds.length ? ' on' : '')} onClick={() => setPicking('accounts')}>
+          <span class="row-title">{accLabel}</span>
+        </button>
+        <button class={'text-input filter-btn' + (categoryIds.length ? ' on' : '')} onClick={() => setPicking('categories')}>
+          <span class="row-title">{catLabel}</span>
+        </button>
         <input
           class="text-input search"
           type="search"
@@ -79,8 +118,8 @@ export function TransactionsScreen({ initialMonth, initialCategory }: { initialM
           <button
             class="link small"
             onClick={() => {
-              setAccountId(undefined);
-              setCategoryId(undefined);
+              setAccountIds([]);
+              setCategoryIds([]);
               setQuery('');
             }}
           >
@@ -89,8 +128,18 @@ export function TransactionsScreen({ initialMonth, initialCategory }: { initialM
         )}
       </div>
 
+      <FilterTotalsCard totals={filterTotals(filtered, accounts, accountIds)} showTransfers={accountIds.length > 0} />
+
       {groups.length === 0 ? (
-        <div class="card empty">{hasFilter ? 'Ничего не найдено.' : 'В этом месяце операций нет.'}</div>
+        <div class="card empty">
+          {badPeriod
+            ? 'Дата «с» должна быть не позже даты «по».'
+            : hasFilter
+              ? 'Ничего не найдено.'
+              : mode === 'month'
+                ? 'В этом месяце операций нет.'
+                : 'За этот период операций нет.'}
+        </div>
       ) : (
         groups.map((g) => (
           <section class="card day">
@@ -103,7 +152,69 @@ export function TransactionsScreen({ initialMonth, initialCategory }: { initialM
       )}
 
       {editing && <OperationForm key={editing.id} tx={editing} onClose={() => setEditing(null)} />}
+
+      {picking === 'accounts' && (
+        <MultiPick
+          title="Счета"
+          groups={[{ options: sortedAccounts.map((a) => ({ id: a.id!, label: a.name, note: a.archived ? 'архив' : undefined })) }]}
+          selected={accountIds}
+          onChange={setAccountIds}
+          onClose={() => setPicking(null)}
+        />
+      )}
+      {picking === 'categories' && (
+        <MultiPick
+          title="Категории"
+          groups={(['expense', 'income'] as const).map((k) => ({
+            title: k === 'expense' ? 'Расходы' : 'Доходы',
+            options: sortedCats(k).map((c) => ({ id: c.id!, label: c.name, note: c.hidden ? 'скрыта' : undefined }))
+          }))}
+          selected={categoryIds}
+          onChange={setCategoryIds}
+          onClose={() => setPicking(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Итоги по тому, что отобрано (BA-011): Доходы, Расходы, Разница по каждой валюте; при фильтре по счетам —
+ * «Переводы: +пришло / −ушло». Нет операций — карточки нет.
+ */
+function FilterTotalsCard({ totals, showTransfers }: { totals: FilterTotals[]; showTransfers: boolean }) {
+  if (!totals.length) return null;
+  const multi = totals.length > 1;
+  return (
+    <section class="card filter-totals">
+      {totals.map((t) => (
+        <div class="ft-block">
+          {multi && <div class="ft-cur">{t.currency}</div>}
+          <div class="ft-row">
+            <div>
+              <div class="stat-label">Доходы</div>
+              <div class="stat-value income">+{formatMoney(t.income, t.currency)}</div>
+            </div>
+            <div>
+              <div class="stat-label">Расходы</div>
+              <div class="stat-value expense">−{formatMoney(t.expense, t.currency)}</div>
+            </div>
+            <div>
+              <div class="stat-label">Разница</div>
+              <div class={'stat-value ' + (t.net >= 0 ? 'income' : 'expense')}>
+                {t.net >= 0 ? '+' : ''}
+                {formatMoney(t.net, t.currency)}
+              </div>
+            </div>
+          </div>
+          {showTransfers && (t.transferIn > 0 || t.transferOut > 0) && (
+            <div class="muted small ft-transfers">
+              Переводы: +{formatMoney(t.transferIn, t.currency)} / −{formatMoney(t.transferOut, t.currency)}
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }
 
